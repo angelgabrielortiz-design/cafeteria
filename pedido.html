@@ -22,7 +22,7 @@
   .total-box { background: white; padding: 15px; border-radius: 8px; margin: 15px 0; display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; }
   .btn-enviar { width: 100%; padding: 15px; background: #4CAF50; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; }
   .btn-enviar:disabled { background: #aaa; }
-  #mensaje { text-align: center; padding: 10px; color: #4CAF50; font-weight: bold; display: none; }
+  #mensaje { text-align: center; padding: 20px; color: white; font-weight: bold; display: none; background: #4CAF50; border-radius: 10px; font-size: 18px; margin: 10px 0; }
 </style>
 </head>
 <body>
@@ -122,10 +122,12 @@ async function enviarPedido() {
 
   await fetch(url);
   document.getElementById("mensaje").style.display = "block";
+setTimeout(() => {
+  document.getElementById("mensaje").style.display = "none";
   document.getElementById("btnEnviar").disabled = false;
   carrito = {};
   cargarMenu();
-}
+}, 3000);
 
 cargarMenu();
 </script>
