@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel Administrador - Cafetería CBTIS 171</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #1a1a2e; color: #eee; }
+  
+  header { background: #16213e; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #4CAF50; }
+  header h1 { color: #4CAF50; font-size: 20px; }
+  
+  .btn-actualizar { background: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+  .btn-actualizar:hover { background: #45a049; }
+  
+  .resumen { display: flex; gap: 15px; padding: 15px 20px; }
+  .tarjeta { flex: 1; background: #16213e; border-radius: 10px; padding: 15px; text-align: center; }
+  .tarjeta .numero { font-size: 32px; font-weight: bold; }
+  .tarjeta .label { font-size: 12px; color: #aaa; margin-top: 4px; }
+  .nuevo .numero { color: #ff5252; }
+  .procesando .numero { color: #ffb300; }
+  .finalizado .numero { color: #4CAF50; }
+
+  .filtros { padding: 10px 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn-filtro { padding: 8px 16px; border: 2px solid #4CAF50; background: transparent; color: #4CAF50; border-radius: 20px; cursor: pointer; font-size: 13px; }
+  .btn-filtro.activo { background: #4CAF50; color: white; }
+
+  .lista { padding: 10px 20px; }
+  
+  .pedido { background: #16213e; border-radius: 10px; padding: 15px; margin: 10px 0; border-left: 4px solid #555; }
+  .pedido.nuevo { border-left-color: #ff5252; }
+  .pedido.procesando { border-left-color: #ffb300; }
+  .pedido.finalizado { border-left-color: #4CAF50; }
+
+  .pedido-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .pedido-id { font-size: 12px; color: #aaa; }
+  .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; }
+  .badge.Nuevo { background: #ff5252; color: white; }
+  .badge.Procesando { background: #ffb300; color: black; }
+  .badge.Finalizado { background: #4CAF50; color: white; }
+
+  .pedido-info { margin: 8px 0; }
+  .pedido-info span { display: inline-block; background: #0f3460; padding: 3px 8px; border-radius: 4px; font-size: 12px; margin: 2px; }
+  
+  .pedido-items { background: #0f3460; padding: 10px; border-radius: 6px; margin: 8px 0; font-size: 13px; }
+  .pedido-total { font-weight: bold; color: #4CAF50; font-size: 15px; margin: 6px 0; }
+  .pedido-hora { font-size: 11px; color: #aaa; }
+
+  .acciones { display: flex; gap: 8px; margin-top: 10px; }
+  .btn-estado { flex: 1; padding: 8px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
+  .btn-procesando { background: #ffb300; color: black; }
+  .btn-finalizado { background: #4CAF50; color: white; }
+  .btn-procesando:disabled, .btn-finalizado:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  #cargando { text-align: center; padding: 40px; color: #aaa; }
+  #sinPedidos { text-align: center; padding: 40px; color: #aaa; display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>☕ Cafetería CBTIS 171</h1>
+  <button class="btn-actualizar" onclick="cargarPedidos()">↻ Actualizar</button>
+</header>
+
+<div class="resumen">
+  <div class="tarjeta nuevo">
+    <div class="numero" id="totalNuevo">0</div>
+    <div class="label">NUEVO</div>
+  </div>
+  <div class="tarjeta procesando">
+    <div class="numero" id="totalProcesando">0</div>
+    <div class="label">PROCESANDO</div>
+  </div>
+  <div class="tarjeta finalizado">
+    <div class="numero" id="totalFinalizado">0</div>
+    <div class="label">FINALIZADO</div>
+  </div>
+</div>
+
+<div class="filtros">
+  <button class="btn-filtro activo" onclick="filtrar('Todos', this)">Todos</button>
+  <button class="btn-filtro" onclick="filtrar('Nuevo', this)">Nuevo</button>
+  <button class="btn-filtro" onclick="filtrar('Procesando', this)">Procesando</button>
+  <button class="btn-filtro" onclick="filtrar('Finalizado', this)">Finalizado</button>
+</div>
+
+<div id="cargando">Cargando pedidos...</div>
+<div id="sinPedidos">No hay pedidos</div>
+<div class="lista" id="listaPedidos"></div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbzopt8JS4G-ZEGQsCUj-nElzqw8clAgRXGrdn9xIoR4tSk9ro-MGHo9DD3hxeKuM5QGCg/exec";
+
+let pedidos = [];
+let filtroActual = "Todos";
+
+function cargarPedidos() {
+  document.getElementById("cargando").style.display = "block";
+  document.getElementById("listaPedidos").innerHTML = "";
+  
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", API_URL + "?action=getPedidos", true);
+  xhr.onload = function() {
+    document.getElementById("cargando").style.display = "none";
+    if (xhr.status === 200) {
+      var data = JSON.parse(xhr.responseText);
+      pedidos = (data.pedidos || []).reverse();
+      actualizarResumen();
+      renderPedidos();
+    }
+  };
+  xhr.send();
+}
+
+function actualizarResumen() {
+  document.getElementById("totalNuevo").textContent = pedidos.filter(p => p.estado === "Nuevo").length;
+  document.getElementById("totalProcesando").textContent = pedidos.filter(p => p.estado === "Procesando").length;
+  document.getElementById("totalFinalizado").textContent = pedidos.filter(p => p.estado === "Finalizado").length;
+}
+
+function renderPedidos() {
+  var lista = document.getElementById("listaPedidos");
+  lista.innerHTML = "";
+  
+  var filtrados = filtroActual === "Todos" ? pedidos : pedidos.filter(p => p.estado === filtroActual);
+  
+  if (filtrados.length === 0) {
+    document.getElementById("sinPedidos").style.display = "block";
+    return;
+  }
+  document.getElementById("sinPedidos").style.display = "none";
+
+  filtrados.forEach(function(p) {
+    var estadoClass = p.estado || "Nuevo";
+    lista.innerHTML += 
+      '<div class="pedido ' + estadoClass.toLowerCase() + '" id="pedido-' + p.id_pedido + '">' +
+        '<div class="pedido-header">' +
+          '<span class="pedido-id">Pedido #' + p.id_pedido + '</span>' +
+          '<span class="badge ' + estadoClass + '">' + estadoClass + '</span>' +
+        '</div>' +
+        '<div class="pedido-info">' +
+          '<span>👤 ' + p.nombre + ' ' + p.apellidos + '</span>' +
+          '<span>📧 ' + p.correo + '</span>' +
+          '<span>🎓 ' + p.grado + '° ' + p.grupo + '</span>' +
+        '</div>' +
+        '<div class="pedido-items">🍽️ ' + p.items + '</div>' +
+        '<div class="pedido-total">Total: $' + p.total + '</div>' +
+        '<div class="pedido-hora">🕐 ' + p.hora_pedido + '</div>' +
+        '<div class="acciones">' +
+          '<button class="btn-estado btn-procesando" id="btnP-' + p.id_pedido + '" ' +
+            (estadoClass !== "Nuevo" ? 'disabled' : '') +
+            ' onclick="cambiarEstado(' + p.id_pedido + ', \'Procesando\')">▶ Procesando</button>' +
+          '<button class="btn-estado btn-finalizado" id="btnF-' + p.id_pedido + '" ' +
+            (estadoClass === "Finalizado" ? 'disabled' : '') +
+            ' onclick="cambiarEstado(' + p.id_pedido + ', \'Finalizado\')">✓ Finalizado</button>' +
+        '</div>' +
+      '</div>';
+  });
+}
+
+function filtrar(estado, btn) {
+  filtroActual = estado;
+  document.querySelectorAll(".btn-filtro").forEach(b => b.classList.remove("activo"));
+  btn.classList.add("activo");
+  renderPedidos();
+}
+
+function cambiarEstado(idPedido, nuevoEstado) {
+  document.getElementById("btnP-" + idPedido).disabled = true;
+  document.getElementById("btnF-" + idPedido).disabled = true;
+
+  var url = API_URL + "?action=updateEstado&rowId=" + idPedido + "&estado=" + nuevoEstado;
+  
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", url, true);
+  xhr.onload = function() {
+    cargarPedidos();
+  };
+  xhr.send();
+}
+
+cargarPedidos();
+setInterval(cargarPedidos, 30000);
+</script>
+</body>
+</html>
