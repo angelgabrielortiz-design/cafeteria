@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hacer Pedido</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 10px; }
+  h2 { color: #333; margin: 10px 0; font-size: 18px; }
+  h3 { color: #555; margin: 15px 0 8px; font-size: 15px; border-bottom: 2px solid #4CAF50; padding-bottom: 4px; }
+  .item { display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px; margin: 5px 0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .item-info { flex: 1; }
+  .item-name { font-weight: bold; font-size: 14px; }
+  .item-price { color: #4CAF50; font-size: 13px; }
+  .controles { display: flex; align-items: center; gap: 8px; }
+  .btn-qty { width: 30px; height: 30px; border: none; border-radius: 50%; font-size: 18px; cursor: pointer; font-weight: bold; }
+  .btn-menos { background: #ff5252; color: white; }
+  .btn-mas { background: #4CAF50; color: white; }
+  .cantidad { font-size: 16px; font-weight: bold; min-width: 20px; text-align: center; }
+  .notas { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin: 10px 0; resize: none; }
+  .total-box { background: white; padding: 15px; border-radius: 8px; margin: 15px 0; display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; }
+  .btn-enviar { width: 100%; padding: 15px; background: #4CAF50; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; }
+  .btn-enviar:disabled { background: #aaa; }
+  #mensaje { text-align: center; padding: 10px; color: #4CAF50; font-weight: bold; display: none; }
+</style>
+</head>
+<body>
+
+<h2>🍽️ Hacer Pedido</h2>
+
+<h3>🥪 Comida</h3>
+<div id="listaComida"></div>
+
+<h3>🥤 Bebidas</h3>
+<div id="listaBebida"></div>
+
+<h3>📝 Notas especiales</h3>
+<textarea class="notas" id="notas" rows="3" placeholder="Ej: sin salsa, con extra queso..."></textarea>
+
+<div class="total-box">
+  <span>Total:</span>
+  <span id="totalTexto">$0</span>
+</div>
+
+<button class="btn-enviar" id="btnEnviar" onclick="enviarPedido()">Enviar Pedido</button>
+<div id="mensaje">✅ Pedido enviado correctamente</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbzopt8JS4G-ZEGQsCUj-nElzqw8clAgRXGrdn9xIoR4tSk9ro-MGHo9DD3hxeKuM5QGCg/exec";
+
+let carrito = {};
+let menuData = [];
+
+// Obtener datos del usuario desde URL
+const params = new URLSearchParams(window.location.search);
+const correo = params.get("correo") || "";
+const nombre = params.get("nombre") || "";
+const apellidos = params.get("apellidos") || "";
+const grado = params.get("grado") || "";
+const grupo = params.get("grupo") || "";
+
+async function cargarMenu() {
+  const res = await fetch(API_URL + "?action=getMenu");
+  const data = await res.json();
+  menuData = [...(data.comidas || []), ...(data.bebidas || [])];
+  renderLista(data.comidas || [], "listaComida");
+  renderLista(data.bebidas || [], "listaBebida");
+}
+
+function renderLista(items, contenedorId) {
+  const div = document.getElementById(contenedorId);
+  div.innerHTML = "";
+  items.forEach((item, i) => {
+    const partes = item.split(" - $");
+    const nombre = partes[0];
+    const precio = parseFloat(partes[1]) || 0;
+    const id = contenedorId + i;
+    carrito[id] = { nombre, precio, cantidad: 0 };
+    div.innerHTML += `
+      <div class="item">
+        <div class="item-info">
+          <div class="item-name">${nombre}</div>
+          <div class="item-price">$${precio}</div>
+        </div>
+        <div class="controles">
+          <button class="btn-qty btn-menos" onclick="cambiarCantidad('${id}', -1)">−</button>
+          <span class="cantidad" id="qty-${id}">0</span>
+          <button class="btn-qty btn-mas" onclick="cambiarCantidad('${id}', 1)">+</button>
+        </div>
+      </div>`;
+  });
+}
+
+function cambiarCantidad(id, delta) {
+  carrito[id].cantidad = Math.max(0, carrito[id].cantidad + delta);
+  document.getElementById("qty-" + id).textContent = carrito[id].cantidad;
+  actualizarTotal();
+}
+
+function actualizarTotal() {
+  let total = 0;
+  Object.values(carrito).forEach(i => total += i.precio * i.cantidad);
+  document.getElementById("totalTexto").textContent = "$" + total;
+}
+
+async function enviarPedido() {
+  const items = Object.values(carrito)
+    .filter(i => i.cantidad > 0)
+    .map(i => i.nombre + " x" + i.cantidad)
+    .join(", ");
+
+  if (!items) { alert("Selecciona al menos un item"); return; }
+
+  const total = Object.values(carrito).reduce((s, i) => s + i.precio * i.cantidad, 0);
+  const notas = document.getElementById("notas").value;
+  const itemsConNotas = items + (notas ? " | Notas: " + notas : "");
+
+  document.getElementById("btnEnviar").disabled = true;
+
+  const url = `${API_URL}?action=nuevoPedido&correo=${encodeURIComponent(correo)}&nombre=${encodeURIComponent(nombre)}&apellidos=${encodeURIComponent(apellidos)}&grado=${encodeURIComponent(grado)}&grupo=${encodeURIComponent(grupo)}&items=${encodeURIComponent(itemsConNotas)}&total=${total}`;
+
+  await fetch(url);
+  document.getElementById("mensaje").style.display = "block";
+  document.getElementById("btnEnviar").disabled = false;
+  carrito = {};
+  cargarMenu();
+}
+
+cargarMenu();
+</script>
+</body>
+</html>
