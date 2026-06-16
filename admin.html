@@ -147,7 +147,7 @@ function renderPedidos() {
         '</div>' +
         '<div class="pedido-items">🍽️ ' + p.items + '</div>' +
         '<div class="pedido-total">Total: $' + p.total + '</div>' +
-        '<div class="pedido-hora">🕐 ' + p.hora_pedido + '</div>' +
+        '<div class="pedido-hora">🕐 ' + new Date(p.hora_pedido).toLocaleString("es-MX") + '</div>' + +
         '<div class="acciones">' +
           '<button class="btn-estado btn-procesando" id="btnP-' + p.id_pedido + '" ' +
             (estadoClass !== "Nuevo" ? 'disabled' : '') +
