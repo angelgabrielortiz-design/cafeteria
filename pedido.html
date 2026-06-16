@@ -23,11 +23,13 @@
   .btn-enviar { width: 100%; padding: 15px; background: #4CAF50; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; }
   .btn-enviar:disabled { background: #aaa; }
   #mensaje { text-align: center; padding: 20px; color: white; font-weight: bold; display: none; background: #4CAF50; border-radius: 10px; font-size: 18px; margin: 10px 0; }
+  #cargando { text-align: center; padding: 20px; color: #666; }
 </style>
 </head>
 <body>
 
 <h2>🍽️ Hacer Pedido</h2>
+<div id="cargando">Cargando menú...</div>
 
 <h3>🥪 Comida</h3>
 <div id="listaComida"></div>
@@ -50,45 +52,52 @@
 const API_URL = "https://script.google.com/macros/s/AKfycbzopt8JS4G-ZEGQsCUj-nElzqw8clAgRXGrdn9xIoR4tSk9ro-MGHo9DD3hxeKuM5QGCg/exec";
 
 let carrito = {};
-let menuData = [];
 
-// Obtener datos del usuario desde URL
 const params = new URLSearchParams(window.location.search);
-const correo = params.get("correo") || "";
-const nombre = params.get("nombre") || "";
+const correo    = params.get("correo")    || "";
+const nombre    = params.get("nombre")    || "";
 const apellidos = params.get("apellidos") || "";
-const grado = params.get("grado") || "";
-const grupo = params.get("grupo") || "";
+const grado     = params.get("grado")     || "";
+const grupo     = params.get("grupo")     || "";
 
-async function cargarMenu() {
-  const res = await fetch(API_URL + "?action=getMenu");
-  const data = await res.json();
-  menuData = [...(data.comidas || []), ...(data.bebidas || [])];
-  renderLista(data.comidas || [], "listaComida");
-  renderLista(data.bebidas || [], "listaBebida");
+function cargarMenu() {
+  document.getElementById("cargando").style.display = "block";
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", API_URL + "?action=getMenu", true);
+  xhr.onload = function() {
+    document.getElementById("cargando").style.display = "none";
+    if (xhr.status === 200) {
+      var data = JSON.parse(xhr.responseText);
+      renderLista(data.comidas || [], "listaComida");
+      renderLista(data.bebidas || [], "listaBebida");
+    }
+  };
+  xhr.onerror = function() {
+    document.getElementById("cargando").textContent = "Error al cargar menú";
+  };
+  xhr.send();
 }
 
 function renderLista(items, contenedorId) {
-  const div = document.getElementById(contenedorId);
+  var div = document.getElementById(contenedorId);
   div.innerHTML = "";
-  items.forEach((item, i) => {
-    const partes = item.split(" - $");
-    const nombre = partes[0];
-    const precio = parseFloat(partes[1]) || 0;
-    const id = contenedorId + i;
-    carrito[id] = { nombre, precio, cantidad: 0 };
-    div.innerHTML += `
-      <div class="item">
-        <div class="item-info">
-          <div class="item-name">${nombre}</div>
-          <div class="item-price">$${precio}</div>
-        </div>
-        <div class="controles">
-          <button class="btn-qty btn-menos" onclick="cambiarCantidad('${id}', -1)">−</button>
-          <span class="cantidad" id="qty-${id}">0</span>
-          <button class="btn-qty btn-mas" onclick="cambiarCantidad('${id}', 1)">+</button>
-        </div>
-      </div>`;
+  items.forEach(function(item, i) {
+    var partes = item.split(" - $");
+    var nombreItem = partes[0];
+    var precio = parseFloat(partes[1]) || 0;
+    var id = contenedorId + i;
+    carrito[id] = { nombre: nombreItem, precio: precio, cantidad: 0 };
+    div.innerHTML += '<div class="item">' +
+      '<div class="item-info">' +
+        '<div class="item-name">' + nombreItem + '</div>' +
+        '<div class="item-price">$' + precio + '</div>' +
+      '</div>' +
+      '<div class="controles">' +
+        '<button class="btn-qty btn-menos" onclick="cambiarCantidad(\'' + id + '\', -1)">−</button>' +
+        '<span class="cantidad" id="qty-' + id + '">0</span>' +
+        '<button class="btn-qty btn-mas" onclick="cambiarCantidad(\'' + id + '\', 1)">+</button>' +
+      '</div>' +
+    '</div>';
   });
 }
 
@@ -99,35 +108,48 @@ function cambiarCantidad(id, delta) {
 }
 
 function actualizarTotal() {
-  let total = 0;
-  Object.values(carrito).forEach(i => total += i.precio * i.cantidad);
+  var total = 0;
+  Object.values(carrito).forEach(function(i) { total += i.precio * i.cantidad; });
   document.getElementById("totalTexto").textContent = "$" + total;
 }
 
-async function enviarPedido() {
-  const items = Object.values(carrito)
-    .filter(i => i.cantidad > 0)
-    .map(i => i.nombre + " x" + i.cantidad)
-    .join(", ");
+function enviarPedido() {
+  var itemsArr = Object.values(carrito).filter(function(i) { return i.cantidad > 0; });
+  if (itemsArr.length === 0) { alert("Selecciona al menos un item"); return; }
 
-  if (!items) { alert("Selecciona al menos un item"); return; }
-
-  const total = Object.values(carrito).reduce((s, i) => s + i.precio * i.cantidad, 0);
-  const notas = document.getElementById("notas").value;
-  const itemsConNotas = items + (notas ? " | Notas: " + notas : "");
+  var itemsTexto = itemsArr.map(function(i) { return i.nombre + " x" + i.cantidad; }).join(", ");
+  var total = itemsArr.reduce(function(s, i) { return s + i.precio * i.cantidad; }, 0);
+  var notas = document.getElementById("notas").value;
+  var itemsConNotas = itemsTexto + (notas ? " | Notas: " + notas : "");
 
   document.getElementById("btnEnviar").disabled = true;
 
-  const url = `${API_URL}?action=nuevoPedido&correo=${encodeURIComponent(correo)}&nombre=${encodeURIComponent(nombre)}&apellidos=${encodeURIComponent(apellidos)}&grado=${encodeURIComponent(grado)}&grupo=${encodeURIComponent(grupo)}&items=${encodeURIComponent(itemsConNotas)}&total=${total}`;
+  var url = API_URL + "?action=nuevoPedido" +
+    "&correo=" + encodeURIComponent(correo) +
+    "&nombre=" + encodeURIComponent(nombre) +
+    "&apellidos=" + encodeURIComponent(apellidos) +
+    "&grado=" + encodeURIComponent(grado) +
+    "&grupo=" + encodeURIComponent(grupo) +
+    "&items=" + encodeURIComponent(itemsConNotas) +
+    "&total=" + total;
 
-  await fetch(url);
-  document.getElementById("mensaje").style.display = "block";
-setTimeout(() => {
-  document.getElementById("mensaje").style.display = "none";
-  document.getElementById("btnEnviar").disabled = false;
-  carrito = {};
-  cargarMenu();
-}, 3000);
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", url, true);
+  xhr.onload = function() {
+    document.getElementById("mensaje").style.display = "block";
+    setTimeout(function() {
+      document.getElementById("mensaje").style.display = "none";
+      document.getElementById("btnEnviar").disabled = false;
+      carrito = {};
+      cargarMenu();
+    }, 3000);
+  };
+  xhr.onerror = function() {
+    alert("Error al enviar pedido");
+    document.getElementById("btnEnviar").disabled = false;
+  };
+  xhr.send();
+}
 
 cargarMenu();
 </script>
